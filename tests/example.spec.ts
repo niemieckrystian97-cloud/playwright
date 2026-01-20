@@ -538,3 +538,303 @@ test('TC14 Place Order: Register while Checkout', async ({ page }) => {
   await page.getByRole('link', { name: /Continue/i }).click();
 
 })
+
+test('TC15 Place Order: Register before Checkout', async ({ page }) => {
+  await page.goto(WebsiteAddres);
+  await consentBtn(page);
+
+  const navLocator = page.locator('div').nth(2);
+  await navLocator.getByRole('link', { name: /Signup \/ Login/i }).click();
+
+  const signupSection = page.getByText('New User Signup!').locator('..');
+  await signupSection.getByPlaceholder(/Name/).fill(user.firstName);
+  await signupSection.getByPlaceholder(/Email/).fill(user.mail);
+  await signupSection.getByRole('button').nth(0).click();
+  await expect(page.getByText('ENTER ACCOUNT INFORMATION')).toBeVisible();
+  let tempLocator = await page.getByText('Title').locator('..');
+  await tempLocator.getByRole('radio', { name: 'Mr.' }).click();
+  tempLocator = await page.getByText('Password *').nth(0).locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.password);
+  tempLocator = await page.getByText('First name *').nth(0).locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.firstName);
+  tempLocator = await page.getByText('Last name *').nth(0).locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.lastName);
+  await page.getByRole('checkbox', { name: 'Sign up for our newsletter!' }).click();
+  await page.getByRole('checkbox', { name: 'Receive special offers from our partners!' }).click();
+  tempLocator = await page.getByText('Company').nth(0).locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.company);
+  tempLocator = await page.getByText('Address *').first().locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.address);
+  tempLocator = await page.getByText('Address 2').first().locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.address2);
+  tempLocator = await page.getByText('Country').first().locator('..');
+  await tempLocator.locator('label').first().selectOption(user.country);
+  tempLocator = await page.getByText('State *').first().locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.state);
+  tempLocator = await page.getByText('City *').first().locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.city);
+  tempLocator = await page.getByText('Zipcode *').first().locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.zipcode);
+  tempLocator = await page.getByText('Mobile Number *').first().locator('..');
+  await tempLocator.getByRole('textbox').first().fill(user.mobileNumber);
+  await page.getByRole('button', { name: 'Create Account' }).click();
+  await expect(page.getByText('ACCOUNT CREATED!')).toBeVisible();
+  await page.getByRole('link', { name: /Continue/i }).click();
+
+  await expect(page.getByText(`Logged in as ${user.firstName}`)).toBeVisible();
+
+  //Adding few products to cart
+  let numberOfProducts = 3; // The number of products that will be added to the order
+  let products: SingleProduct[] = [];
+
+  for (let i = 0; i < numberOfProducts; i++) {
+    const singleProductLocator = page.locator('.single-products').nth(i);
+    products.push({
+      name: (await singleProductLocator.locator('.productinfo p').innerText()).toString().trim(),
+      price: (await singleProductLocator.locator('.productinfo h2').innerText()).toString().trim()
+    })
+    await singleProductLocator.getByText(/Add to cart/i).first().click();
+    await page.getByRole('button', { name: /Continue Shopping/i }).click();
+  }
+  console.log(products);
+
+  await navLocator.getByRole('link', { name: /Cart/i }).click();
+  await page.getByText(/Proceed To Checkout/i).click();
+
+  // Checking address in order summary
+  let verifyUserLocator = page.locator('#address_delivery');
+  for (let i = 0; i < 2; i++) {
+    if (i == 1) {
+      verifyUserLocator = page.locator('#address_invoice');
+    }
+    let firstLastNameElement = verifyUserLocator.locator('.address_firstname');
+    let companyElement = verifyUserLocator.locator('.address_address1').nth(0);
+    let addressElement = verifyUserLocator.locator('.address_address1').nth(1);
+    let address2Element = verifyUserLocator.locator('.address_address1').nth(2);
+    let addressCityElement = verifyUserLocator.locator('.address_city');
+    let addressCountryElement = verifyUserLocator.locator('.address_country_name');
+    let addressPhoneElement = verifyUserLocator.locator('.address_phone');
+    let temp = '';
+    let raw = await firstLastNameElement.textContent();
+    temp = (raw ?? '').trim().replace(/^(Mr\.|Mrs\.)\s+/i, '');
+    if (temp != `${user.firstName} ${user.lastName}`) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await companyElement.textContent())?.trim() ?? '';
+    if (temp != user.company) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await addressElement.textContent())?.trim() ?? '';
+    if (temp != user.address) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await address2Element.textContent())?.trim() ?? '';
+    if (temp != user.address2) {
+      throw new Error('The data in the form does not match');
+    }
+    raw = await addressCityElement.textContent();
+    temp = (raw ?? '').replace(/\s+/g, ' ').trim();
+    if (temp != `${user.city} ${user.state} ${user.zipcode}`) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await addressCountryElement.textContent())?.trim() ?? '';
+    if (temp != user.country) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await addressPhoneElement.textContent())?.trim() ?? '';
+    if (temp != user.mobileNumber) {
+      throw new Error('The data in the form does not match');
+    }
+  }
+
+  let expectProducts: SingleProduct[] = [];
+  let reviewOrderLocator = page.locator('#cart_info');
+  for (let i = 0; i < numberOfProducts; i++) {
+    let singleOrderLocator = reviewOrderLocator.locator(`#product-${i + 1}`);
+    expectProducts.push({
+      name: (await singleOrderLocator.locator('.cart_description a').innerText()).toString().trim(),
+      price: (await singleOrderLocator.locator('.cart_price p').innerText()).toString().trim()
+    })
+  }
+
+  //Check oreder items in review order
+  for (let i = 0; i < numberOfProducts; i++) {
+    if (products[i].name != expectProducts[i].name
+      || products[i].price != expectProducts[i].price
+    ) {
+      throw new Error('The order summary is different from the order placed');
+    }
+  }
+
+  await page.locator('#ordermsg textarea').fill('Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum');
+  await page.getByRole('link', { name: /Place Order/i }).click();
+
+  await page.locator('input[name = "name_on_card"]').fill('TestCard');
+  await page.locator('input[name = "card_number"]').fill('123456789');
+  await page.getByRole('textbox', { name: /ex./i }).fill('311');
+  await page.getByRole('textbox', { name: /MM/i }).fill('01');
+  await page.getByRole('textbox', { name: /YYYY/i }).fill('2026');
+
+  const successMessage = page.locator('#success_message .alert-success');
+  await Promise.all([
+    expect(page.getByText(/Your order has been placed successfully!/i)).toBeAttached(),
+    await page.getByRole('button', { name: /Pay and confirm order/i }).click(),
+
+  ]);
+
+  await Promise.all([
+    navLocator.getByText(/Delete Account/i).click(),
+    await expect(page.getByText(/ACCOUNT DELETED!/i)).toBeVisible()
+  ])
+  await page.getByRole('link', { name: /Continue/i }).click();
+})
+
+test('TC16 Place Order: Login before Checkout', async ({ page }) => {
+  await createUser(page);
+  const navLocator = page.locator('div').nth(2);
+
+  await expect(navLocator.getByText(`Logged in as ${user.firstName}`)).toBeVisible();
+
+  //Adding few products to cart
+  let numberOfProducts = 3; // The number of products that will be added to the order
+  let products: SingleProduct[] = [];
+
+  for (let i = 0; i < numberOfProducts; i++) {
+    const singleProductLocator = page.locator('.single-products').nth(i);
+    products.push({
+      name: (await singleProductLocator.locator('.productinfo p').innerText()).toString().trim(),
+      price: (await singleProductLocator.locator('.productinfo h2').innerText()).toString().trim()
+    })
+    await singleProductLocator.getByText(/Add to cart/i).first().click();
+    await page.getByRole('button', { name: /Continue Shopping/i }).click();
+  }
+  console.log(products);
+
+  await navLocator.getByRole('link', { name: /Cart/i }).click();
+  await page.getByText(/Proceed To Checkout/i).click();
+  // Checking address in order summary
+  let verifyUserLocator = page.locator('#address_delivery');
+  for (let i = 0; i < 2; i++) {
+    if (i == 1) {
+      verifyUserLocator = page.locator('#address_invoice');
+    }
+    let firstLastNameElement = verifyUserLocator.locator('.address_firstname');
+    let companyElement = verifyUserLocator.locator('.address_address1').nth(0);
+    let addressElement = verifyUserLocator.locator('.address_address1').nth(1);
+    let address2Element = verifyUserLocator.locator('.address_address1').nth(2);
+    let addressCityElement = verifyUserLocator.locator('.address_city');
+    let addressCountryElement = verifyUserLocator.locator('.address_country_name');
+    let addressPhoneElement = verifyUserLocator.locator('.address_phone');
+    let temp = '';
+    let raw = await firstLastNameElement.textContent();
+    temp = (raw ?? '').trim().replace(/^(Mr\.|Mrs\.)\s+/i, '');
+    if (temp != `${user.firstName} ${user.lastName}`) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await companyElement.textContent())?.trim() ?? '';
+    if (temp != user.company) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await addressElement.textContent())?.trim() ?? '';
+    if (temp != user.address) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await address2Element.textContent())?.trim() ?? '';
+    if (temp != user.address2) {
+      throw new Error('The data in the form does not match');
+    }
+    raw = await addressCityElement.textContent();
+    temp = (raw ?? '').replace(/\s+/g, ' ').trim();
+    if (temp != `${user.city} ${user.state} ${user.zipcode}`) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await addressCountryElement.textContent())?.trim() ?? '';
+    if (temp != user.country) {
+      throw new Error('The data in the form does not match');
+    }
+    temp = (await addressPhoneElement.textContent())?.trim() ?? '';
+    if (temp != user.mobileNumber) {
+      throw new Error('The data in the form does not match');
+    }
+  }
+
+  let expectProducts: SingleProduct[] = [];
+  let reviewOrderLocator = page.locator('#cart_info');
+  for (let i = 0; i < numberOfProducts; i++) {
+    let singleOrderLocator = reviewOrderLocator.locator(`#product-${i + 1}`);
+    expectProducts.push({
+      name: (await singleOrderLocator.locator('.cart_description a').innerText()).toString().trim(),
+      price: (await singleOrderLocator.locator('.cart_price p').innerText()).toString().trim()
+    })
+  }
+
+  //Check oreder items in review order
+  for (let i = 0; i < numberOfProducts; i++) {
+    if (products[i].name != expectProducts[i].name
+      || products[i].price != expectProducts[i].price
+    ) {
+      throw new Error('The order summary is different from the order placed');
+    }
+  }
+
+  await page.locator('#ordermsg textarea').fill('Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum');
+  await page.getByRole('link', { name: /Place Order/i }).click();
+
+  await page.locator('input[name = "name_on_card"]').fill('TestCard');
+  await page.locator('input[name = "card_number"]').fill('123456789');
+  await page.getByRole('textbox', { name: /ex./i }).fill('311');
+  await page.getByRole('textbox', { name: /MM/i }).fill('01');
+  await page.getByRole('textbox', { name: /YYYY/i }).fill('2026');
+
+  const successMessage = page.locator('#success_message .alert-success');
+  await Promise.all([
+    expect(page.getByText(/Your order has been placed successfully!/i)).toBeAttached(),
+    await page.getByRole('button', { name: /Pay and confirm order/i }).click(),
+
+  ]);
+
+  await Promise.all([
+    navLocator.getByText(/Delete Account/i).click(),
+    await expect(page.getByText(/ACCOUNT DELETED!/i)).toBeVisible()
+  ])
+  await page.getByRole('link', { name: /Continue/i }).click();
+})
+
+test('TC17 Remove Products From Cart', async ({ page }) => {
+
+  await page.goto(WebsiteAddres);
+  await consentBtn(page);
+
+  const navLocator = page.locator('div').nth(2);
+
+
+  //Adding few products to cart
+  let numberOfProducts = 3; // The number of products that will be added to the order
+  let products: SingleProduct[] = [];
+
+  for (let i = 0; i < numberOfProducts; i++) {
+    const singleProductLocator = page.locator('.single-products').nth(i);
+    products.push({
+      name: (await singleProductLocator.locator('.productinfo p').innerText()).toString().trim(),
+      price: (await singleProductLocator.locator('.productinfo h2').innerText()).toString().trim()
+    })
+    await singleProductLocator.getByText(/Add to cart/i).first().click();
+    await page.getByRole('button', { name: /Continue Shopping/i }).click();
+  }
+  console.log(products);
+
+
+  await navLocator.getByRole('link', { name: /Cart/i }).click();
+
+  const cartInfoLocator = page.locator('#cart_info');
+  const rowCount = await cartInfoLocator.locator('tr[id^="product-"]').count();
+
+  console.log(rowCount);
+
+  const firstProductLocator = cartInfoLocator.locator('#product-1');
+  await firstProductLocator.locator('.cart_quantity_delete').click();
+  await firstProductLocator.waitFor({ state: 'detached' });
+
+  await expect(cartInfoLocator.locator('tr[id^="product-"]')).toHaveCount(rowCount - 1);
+
+})
