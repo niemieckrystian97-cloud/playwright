@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { text } from 'stream/consumers';
+import path from 'path';
+import { log } from 'console';
 
 //https://automationexercise.com/test_cases
 
@@ -44,6 +46,8 @@ const user: User = {
   password: '123456789'
 }
 
+//Path to assets
+const jpgFilePath = path.resolve(__dirname, '../assets/Test.jpg');
 
 
 async function createUser(page) {
@@ -95,48 +99,61 @@ async function createUser(page) {
   await page.getByRole('link', { name: /Continue/i }).click();
 }
 
+async function deleteUser(page){
+  await page.getByRole('link', { name: /Delete/i }).click();
+  await expect(page.getByText('ACCOUNT DELETED!')).toBeVisible();
+  await page.getByRole('link', { name: /Continue/i }).click();
+}
+
 async function consentBtn(page) {
   const consentBtn = page.getByRole('button', { name: 'Consent' });
   if (await consentBtn.isVisible()) {
     await consentBtn.click();
   }
 }
-
-test('TC1 Register User', async ({ page }) => {
-  await createUser(page);
-  if (DeleteFlag) {
-    await page.getByRole('link', { name: /Delete/i }).click();
-    await expect(page.getByText('ACCOUNT DELETED!')).toBeVisible();
-    await page.getByRole('link', { name: /Continue/i }).click();
-  }
-
-})
 async function logOut(page) {
   await page.getByRole('link', { name: /Logout/i }).click();
   await page.goto(WebsiteAddres);
 }
-test('TC2 Login User', async ({ page }) => {
-  DeleteFlag = false;
-  await createUser(page);
-  await logOut(page);
+async function logIn(page) {
   await page.getByRole('link', { name: /signup/i }).click();
-
+  await expect(page.getByText('Login to your account')).toBeVisible();
   const signupSection = page.getByText('Login to your account').locator('..');
   await signupSection.getByPlaceholder(/Email/).fill(user.mail);
   await signupSection.getByPlaceholder(/Password/).fill(user.password);
   await signupSection.getByRole('button').nth(0).click();
-  await page.getByRole('link', { name: /Delete/i }).click();
-  await expect(page.getByText('ACCOUNT DELETED!')).toBeVisible();
-  await page.getByRole('link', { name: /Continue/i }).click();
+}
+
+
+test('TC1 Register User', async ({ page }) => {
+  // Register new user
+  await createUser(page);
+
+  // Delete user (beyond TC requirements cleaning before next TC)
+  await deleteUser(page);
+})
+
+test('TC2 Login User', async ({ page }) => {
+  // Create, logout
+  await createUser(page);
+  await logOut(page);
+  
+  // Checking log in
+  await page.getByRole('link', { name: /signup/i }).click();
+  const signupSection = page.getByText('Login to your account').locator('..');
+  await signupSection.getByPlaceholder(/Email/).fill(user.mail);
+  await signupSection.getByPlaceholder(/Password/).fill(user.password);
+  await signupSection.getByRole('button').nth(0).click();
+  
+  // Delete user (beyond TC requirements cleaning before next TC)
+  await deleteUser(page);
 })
 test('TC3 Inncorrect Email', async ({ page }) => {
-  await page.goto(WebsiteAddres);
-  const consentBtn = page.getByRole('button', { name: 'Consent' });
-  if (await consentBtn.isVisible()) {
-    await consentBtn.click();
-  }
+  // Create, logout
+  await createUser(page);
+  await logOut(page);
 
-
+  // Log in with incorrect data
   await page.getByRole('link', { name: /signup/i }).click();
   await expect(page.getByText(/new user signup/i)).toBeVisible();
   const signupSection = page.getByText('Login to your account').locator('..');
@@ -145,43 +162,35 @@ test('TC3 Inncorrect Email', async ({ page }) => {
   await signupSection.getByRole('button').nth(0).click();
   await expect(page.getByText('Your email or password is incorrect!')).toBeVisible();
 
+  // Log in with correct data and delete account
+  await signupSection.getByPlaceholder(/Email/).fill(user.mail);
+  await signupSection.getByRole('button').nth(0).click();
+  await deleteUser(page);
+
 }
 )
 test('TC4 Logout User', async ({ page }) => {
+  // Create, logout
+  await createUser(page);
+  await logOut(page);
 
-  // Fix needed!
-
-  // DeleteFlag = false;
-  // await createUser(page);
-  // await logOut(page);
-  // await page.getByRole('link', { name: /signup/i }).click();
-
-  await page.goto(WebsiteAddres);
-  const consentBtn = page.getByRole('button', { name: 'Consent' });
-  if (await consentBtn.isVisible()) {
-    await consentBtn.click();
-  }
-
-  await page.getByRole('link', { name: /signup/i }).click();
-  await expect(page.getByText('Login to your account')).toBeVisible();
-  const signupSection = page.getByText('Login to your account').locator('..');
-  await signupSection.getByPlaceholder(/Email/).fill(user.mail);
-  await signupSection.getByPlaceholder(/Password/).fill(user.password);
-  await signupSection.getByRole('button').nth(0).click();
-
+  // Checking logOut process on created account
+  await logIn(page)
   await expect(page.getByText(`Logged in as ${user.firstName}`)).toBeVisible();
   await expect(page.getByRole('link', { name: /logout/i })).toBeVisible();
-
   await page.getByRole('link', { name: /logout/i }).click();
   await expect(page).toHaveURL(WebsiteAddres + 'login');
+
+  // Delete user (beyond TC requirements cleaning before next TC)
+  await page.goto(WebsiteAddres);
+  await logIn(page);
+  await deleteUser(page);
 })
 
 test('TC5 Register User with existing email', async ({ page }) => {
-  await page.goto(WebsiteAddres);
-  const consentBtn = page.getByRole('button', { name: 'Consent' });
-  if (await consentBtn.isVisible()) {
-    await consentBtn.click();
-  }
+  // Create, logout
+  await createUser(page);
+  await logOut(page);
 
   // Assuming we already have an account
   await page.getByRole('link', { name: /signup/i }).click();
@@ -191,6 +200,11 @@ test('TC5 Register User with existing email', async ({ page }) => {
   await signupSection.getByPlaceholder(/Email/).fill(user.mail);
   await signupSection.getByRole('button', { name: /Signup/i }).click();
   await expect(signupSection.getByText('Email Address already exist!')).toBeVisible();
+
+  // Delete user (beyond TC requirements cleaning before next TC)
+  await page.goto(WebsiteAddres);
+  await logIn(page);
+  await deleteUser(page);
 })
 
 test('TC6 Contact Us Form', async ({ page }) => {
@@ -207,7 +221,7 @@ test('TC6 Contact Us Form', async ({ page }) => {
   await formSection.getByRole('textbox', { name: /Email/i }).fill(user.mail);
   await formSection.getByRole('textbox', { name: /Subject/i }).fill('xyz');
   await formSection.getByRole('textbox', { name: /Your message here/i }).fill('zyx');
-  await formSection.getByRole('button', { name: /Choose file/i }).setInputFiles('C:/Users/kniemie/Desktop/Test.jpg');
+  await formSection.getByRole('button', { name: /Choose file/i }).setInputFiles(jpgFilePath);
   page.once('dialog', async dialog => {
     await dialog.accept();
   });
@@ -265,7 +279,6 @@ test('TC9 Search Product', async ({ page }) => {
     if (!(productName.toLowerCase().includes(searchProductName.toLowerCase()))) {
       throw new Error('Search doesn t work correctly.');
     }
-
   }
 })
 
@@ -411,40 +424,7 @@ test('TC14 Place Order: Register while Checkout', async ({ page }) => {
   await page.getByRole('link', { name: /Register \/ Login/i }).click();
 
   //Creating user
-  const signupSection = page.getByText('New User Signup!').locator('..');
-  await signupSection.getByPlaceholder(/Name/).fill(user.firstName);
-  await signupSection.getByPlaceholder(/Email/).fill(user.mail);
-  await signupSection.getByRole('button').nth(0).click();
-  await expect(page.getByText('ENTER ACCOUNT INFORMATION')).toBeVisible();
-  let tempLocator = await page.getByText('Title').locator('..');
-  await tempLocator.getByRole('radio', { name: 'Mr.' }).click();
-  tempLocator = await page.getByText('Password *').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.password);
-  tempLocator = await page.getByText('First name *').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.firstName);
-  tempLocator = await page.getByText('Last name *').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.lastName);
-  await page.getByRole('checkbox', { name: 'Sign up for our newsletter!' }).click();
-  await page.getByRole('checkbox', { name: 'Receive special offers from our partners!' }).click();
-  tempLocator = await page.getByText('Company').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.company);
-  tempLocator = await page.getByText('Address *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.address);
-  tempLocator = await page.getByText('Address 2').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.address2);
-  tempLocator = await page.getByText('Country').first().locator('..');
-  await tempLocator.locator('label').first().selectOption(user.country);
-  tempLocator = await page.getByText('State *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.state);
-  tempLocator = await page.getByText('City *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.city);
-  tempLocator = await page.getByText('Zipcode *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.zipcode);
-  tempLocator = await page.getByText('Mobile Number *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.mobileNumber);
-  await page.getByRole('button', { name: 'Create Account' }).click();
-  await expect(page.getByText('ACCOUNT CREATED!')).toBeVisible();
-  await page.getByRole('link', { name: /Continue/i }).click();
+  await createUser(page);
 
   await expect(headerLocator.getByText(`Logged in as ${user.firstName}`)).toBeVisible();
   await headerLocator.getByText(/Cart/i).click();
@@ -531,55 +511,12 @@ test('TC14 Place Order: Register while Checkout', async ({ page }) => {
 
   ]);
 
-  await Promise.all([
-    headerLocator.getByText(/Delete Account/i).click(),
-    await expect(page.getByText(/ACCOUNT DELETED!/i)).toBeVisible()
-  ])
-  await page.getByRole('link', { name: /Continue/i }).click();
-
+  await deleteUser(page);
 })
 
 test('TC15 Place Order: Register before Checkout', async ({ page }) => {
-  await page.goto(WebsiteAddres);
-  await consentBtn(page);
-
+  await createUser(page);
   const navLocator = page.locator('div').nth(2);
-  await navLocator.getByRole('link', { name: /Signup \/ Login/i }).click();
-
-  const signupSection = page.getByText('New User Signup!').locator('..');
-  await signupSection.getByPlaceholder(/Name/).fill(user.firstName);
-  await signupSection.getByPlaceholder(/Email/).fill(user.mail);
-  await signupSection.getByRole('button').nth(0).click();
-  await expect(page.getByText('ENTER ACCOUNT INFORMATION')).toBeVisible();
-  let tempLocator = await page.getByText('Title').locator('..');
-  await tempLocator.getByRole('radio', { name: 'Mr.' }).click();
-  tempLocator = await page.getByText('Password *').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.password);
-  tempLocator = await page.getByText('First name *').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.firstName);
-  tempLocator = await page.getByText('Last name *').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.lastName);
-  await page.getByRole('checkbox', { name: 'Sign up for our newsletter!' }).click();
-  await page.getByRole('checkbox', { name: 'Receive special offers from our partners!' }).click();
-  tempLocator = await page.getByText('Company').nth(0).locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.company);
-  tempLocator = await page.getByText('Address *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.address);
-  tempLocator = await page.getByText('Address 2').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.address2);
-  tempLocator = await page.getByText('Country').first().locator('..');
-  await tempLocator.locator('label').first().selectOption(user.country);
-  tempLocator = await page.getByText('State *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.state);
-  tempLocator = await page.getByText('City *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.city);
-  tempLocator = await page.getByText('Zipcode *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.zipcode);
-  tempLocator = await page.getByText('Mobile Number *').first().locator('..');
-  await tempLocator.getByRole('textbox').first().fill(user.mobileNumber);
-  await page.getByRole('button', { name: 'Create Account' }).click();
-  await expect(page.getByText('ACCOUNT CREATED!')).toBeVisible();
-  await page.getByRole('link', { name: /Continue/i }).click();
 
   await expect(page.getByText(`Logged in as ${user.firstName}`)).toBeVisible();
 
@@ -682,11 +619,7 @@ test('TC15 Place Order: Register before Checkout', async ({ page }) => {
 
   ]);
 
-  await Promise.all([
-    navLocator.getByText(/Delete Account/i).click(),
-    await expect(page.getByText(/ACCOUNT DELETED!/i)).toBeVisible()
-  ])
-  await page.getByRole('link', { name: /Continue/i }).click();
+  await deleteUser(page)
 })
 
 test('TC16 Place Order: Login before Checkout', async ({ page }) => {
@@ -793,11 +726,7 @@ test('TC16 Place Order: Login before Checkout', async ({ page }) => {
 
   ]);
 
-  await Promise.all([
-    navLocator.getByText(/Delete Account/i).click(),
-    await expect(page.getByText(/ACCOUNT DELETED!/i)).toBeVisible()
-  ])
-  await page.getByRole('link', { name: /Continue/i }).click();
+  await deleteUser(page);
 })
 
 test('TC17 Remove Products From Cart', async ({ page }) => {
